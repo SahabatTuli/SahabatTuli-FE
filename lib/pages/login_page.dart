@@ -52,7 +52,12 @@ class _LoginPageState extends State<LoginPage> {
                 children: [
                   const Text(
                     "Don't have an account yet? ",
-                    style: TextStyle(color: AppColors.white, fontSize: 12),
+                    style: TextStyle(
+                      fontFamily: 'Inter',
+                      fontWeight: FontWeight.w300,
+                      color: AppColors.white,
+                      fontSize: 12,
+                    ),
                   ),
                   GestureDetector(
                     onTap: () {
@@ -99,6 +104,8 @@ class _LoginPageState extends State<LoginPage> {
                   child: const Text(
                     'Forgot Password?',
                     style: TextStyle(
+                      fontFamily: 'Inter',
+                      fontWeight: FontWeight.w300,
                       color: AppColors.white,
                       fontSize: 12,
                       decoration: TextDecoration.underline,
