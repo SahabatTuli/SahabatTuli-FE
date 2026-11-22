@@ -333,7 +333,6 @@ class _DashboardPageState extends State<DashboardPage> {
   Widget _buildHomePage() {
     return Column(
       children: [
-        // HEADER
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
           child: SizedBox(
