@@ -53,7 +53,7 @@ class _CollaborationPageState extends State<CollaborationPage> {
                 style: TextStyle(
                   color: AppColors.navy,
                   fontSize: 18,
-                  fontWeight: FontWeight.w700,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
               GestureDetector(
@@ -130,7 +130,7 @@ class _CollaborationPageState extends State<CollaborationPage> {
                               'Created by',
                               style: TextStyle(
                                 color: AppColors.textDark,
-                                fontSize: 10,
+                                fontSize: 12,
                                 fontWeight: FontWeight.w500,
                               ),
                             ),
@@ -155,8 +155,8 @@ class _CollaborationPageState extends State<CollaborationPage> {
                                   room['creator']!,
                                   style: const TextStyle(
                                     color: AppColors.textDark,
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w400,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w500,
                                   ),
                                 ),
                               ],

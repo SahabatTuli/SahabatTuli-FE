@@ -3,9 +3,14 @@ import '../theme/app_colors.dart';
 import 'profile_page.dart';
 
 class HistoryPage extends StatefulWidget {
-  final bool isTabMode; // 👈 Tambahan: Membedakan mode tab atau push
+  final bool isTabMode;
+  final VoidCallback? onBackToHome;
 
-  const HistoryPage({super.key, this.isTabMode = false});
+  const HistoryPage({
+    super.key,
+    this.isTabMode = false,
+    this.onBackToHome,
+  });
 
   @override
   State<HistoryPage> createState() => _HistoryPageState();
@@ -13,7 +18,7 @@ class HistoryPage extends StatefulWidget {
 
 class _HistoryPageState extends State<HistoryPage> {
   final TextEditingController _searchController = TextEditingController();
-  final List<Map<String, dynamic>> _allHistoryData = [
+  final List _allHistoryData = [
     {"title": "Percakapan 1", "date": DateTime(2026, 9, 18)},
     {"title": "Percakapan 2", "date": DateTime(2026, 9, 18)},
     {"title": "Percakapan 3", "date": DateTime(2026, 9, 18)},
@@ -29,8 +34,19 @@ class _HistoryPageState extends State<HistoryPage> {
 
   String _formatDate(DateTime date) {
     const monthNames = [
-      "", "Januari", "Februari", "Maret", "April", "Mei", "Juni",
-      "Juli", "Agustus", "September", "Oktober", "November", "Desember"
+      "",
+      "Januari",
+      "Februari",
+      "Maret",
+      "April",
+      "Mei",
+      "Juni",
+      "Juli",
+      "Agustus",
+      "September",
+      "Oktober",
+      "November",
+      "Desember"
     ];
     return "${date.day} ${monthNames[date.month]} ${date.year}";
   }
@@ -51,24 +67,33 @@ class _HistoryPageState extends State<HistoryPage> {
     super.dispose();
   }
 
-  List<int> get _availableMonths {
-    final months = _allHistoryData.map((item) => (item['date'] as DateTime).month).toSet().toList();
-    months.sort(); 
+  List _getAvailableMonths() {
+    final months = _allHistoryData
+        .map((item) => (item['date'] as DateTime).month)
+        .toSet()
+        .toList();
+    months.sort();
     return months;
   }
 
-  List<int> get _availableYears {
-    final years = _allHistoryData.map((item) => (item['date'] as DateTime).year).toSet().toList();
-    years.sort((a, b) => b.compareTo(a)); 
+  List _getAvailableYears() {
+    final years = _allHistoryData
+        .map((item) => (item['date'] as DateTime).year)
+        .toSet()
+        .toList();
+    years.sort((a, b) => b.compareTo(a));
     return years;
   }
 
-  List<Map<String, dynamic>> get _filteredData {
+  List get _filteredData {
     return _allHistoryData.where((item) {
       final date = item['date'] as DateTime;
-      final matchesSearch = item['title'].toString().toLowerCase().contains(_searchQuery);
-      final matchesMonth = _selectedMonth == null ? true : date.month == _selectedMonth;
-      final matchesYear = _selectedYear == null ? true : date.year == _selectedYear;
+      final matchesSearch =
+          item['title'].toString().toLowerCase().contains(_searchQuery);
+      final matchesMonth =
+          _selectedMonth == null ? true : date.month == _selectedMonth;
+      final matchesYear =
+          _selectedYear == null ? true : date.year == _selectedYear;
       return matchesSearch && matchesMonth && matchesYear;
     }).toList();
   }
@@ -76,94 +101,151 @@ class _HistoryPageState extends State<HistoryPage> {
   @override
   Widget build(BuildContext context) {
     final dataToShow = _filteredData;
-    final availableMonths = _availableMonths;
-    final availableYears = _availableYears;
+    final availableMonths = _getAvailableMonths();
+    final availableYears = _getAvailableYears();
 
     const monthNames = [
-      "", "Januari", "Februari", "Maret", "April", "Mei", "Juni",
-      "Juli", "Agustus", "September", "Oktober", "November", "Desember"
+      "",
+      "Januari",
+      "Februari",
+      "Maret",
+      "April",
+      "Mei",
+      "Juni",
+      "Juli",
+      "Agustus",
+      "September",
+      "Oktober",
+      "November",
+      "Desember"
     ];
 
     return Column(
       children: [
-        // --- HEADER ---
-        Padding(
+        // --- HEADER PUTIH MELENGKUNG ---
+        Container(
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(bottom: Radius.circular(24)),
+          ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              // Tombol Back (Hanya muncul jika BUKAN mode tab)
-              widget.isTabMode 
-                  ? const SizedBox(width: 42) // Spacer jika mode tab
-                  : GestureDetector(
-                      onTap: () => Navigator.pop(context),
-                      child: const Icon(Icons.arrow_back_ios, color: AppColors.textDark, size: 20),
-                    ),
-              
+              IconButton(
+                onPressed: () {
+                  if (widget.onBackToHome != null) {
+                    widget.onBackToHome!();
+                  } else if (Navigator.canPop(context)) {
+                    Navigator.pop(context);
+                  }
+                },
+                icon: const Icon(
+                  Icons.arrow_back_ios_new_rounded,
+                  color: AppColors.navy,
+                  size: 20,
+                ),
+              ),
               const Text(
-                'Riwayat Percakapan',
+                'History',
                 style: TextStyle(
-                  color: AppColors.textDark,
+                  color: AppColors.navy,
                   fontSize: 18,
                   fontWeight: FontWeight.w600,
                 ),
               ),
-              
-              // Ikon Profil (Ukuran 42 disamakan dengan Dashboard)
               GestureDetector(
                 onTap: () {
                   Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (context) => const ProfilePage()),
+                    MaterialPageRoute(
+                      builder: (context) => const ProfilePage(),
+                    ),
                   );
                 },
                 child: Container(
-                  width: 42,
-                  height: 42,
+                  width: 38,
+                  height: 38,
                   decoration: const BoxDecoration(
                     color: AppColors.navy,
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(Icons.person, color: AppColors.white, size: 24),
+                  child: const Icon(
+                    Icons.person,
+                    color: AppColors.white,
+                    size: 22,
+                  ),
                 ),
               ),
             ],
           ),
         ),
 
-        // --- KOLOM PENCARIAN ---
+        const SizedBox(height: 18),
+
+        // --- KOLOM PENCARIAN (ROUNDED FULL) ---
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
+          padding: const EdgeInsets.symmetric(horizontal: 24),
           child: Container(
-            height: 45,
+            height: 44,
+            padding: const EdgeInsets.only(left: 20, right: 14),
             decoration: BoxDecoration(
               color: Colors.white,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: Colors.grey.shade300),
+              borderRadius: BorderRadius.circular(30),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.03),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
             ),
-            child: TextField(
-              controller: _searchController,
-              decoration: InputDecoration(
-                hintText: 'Cari...',
-                hintStyle: TextStyle(color: Colors.grey.shade500, fontSize: 14),
-                border: InputBorder.none,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                suffixIcon: const Icon(Icons.search, color: AppColors.textDark),
-              ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _searchController,
+                    style: const TextStyle(
+                      color: AppColors.textDark,
+                      fontSize: 13.5,
+                    ),
+                    decoration: InputDecoration(
+                      hintText: 'Cari....',
+                      hintStyle: TextStyle(
+                        color: Colors.grey.shade500,
+                        fontSize: 13.5,
+                      ),
+                      border: InputBorder.none,
+                      isDense: true,
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                  ),
+                ),
+                const Icon(
+                  Icons.search_rounded,
+                  color: AppColors.textDark,
+                  size: 22,
+                ),
+              ],
             ),
           ),
         ),
         const SizedBox(height: 12),
 
-        // --- FILTER BULAN & TAHUN ---
+        // --- FILTER BULAN & TAHUN (ROUNDED FULL) ---
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
+          padding: const EdgeInsets.symmetric(horizontal: 24),
           child: Row(
             children: [
               Expanded(
                 child: _buildDropdown(
-                  value: _selectedMonth == null ? 'Bulan' : monthNames[_selectedMonth!],
-                  items: ['Bulan', ...availableMonths.map((m) => monthNames[m])],
+                  value: _selectedMonth == null
+                      ? 'Bulan'
+                      : monthNames[_selectedMonth!],
+                  items: [
+                    'Bulan',
+                    ...availableMonths.map((m) => monthNames[m as int]),
+                  ],
                   onChanged: (val) {
                     setState(() {
                       if (val == 'Bulan' || val == null) {
@@ -175,11 +257,14 @@ class _HistoryPageState extends State<HistoryPage> {
                   },
                 ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 14),
               Expanded(
                 child: _buildDropdown(
                   value: _selectedYear?.toString() ?? 'Tahun',
-                  items: ['Tahun', ...availableYears.map((y) => y.toString())],
+                  items: [
+                    'Tahun',
+                    ...availableYears.map((y) => y.toString()),
+                  ],
                   onChanged: (val) {
                     setState(() {
                       if (val == 'Tahun' || val == null) {
@@ -194,33 +279,38 @@ class _HistoryPageState extends State<HistoryPage> {
             ],
           ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 18),
 
         // --- LIST RIWAYAT ---
         Expanded(
           child: Container(
-            margin: const EdgeInsets.symmetric(horizontal: 20),
+            margin: const EdgeInsets.fromLTRB(24, 0, 24, 16),
             decoration: BoxDecoration(
               color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(24),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.03),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
             ),
             child: dataToShow.isEmpty
-                ? const Center(
+                ? Center(
                     child: Text(
                       'Percakapan tidak ditemukan',
-                      style: TextStyle(color: AppColors.textGray, fontSize: 14),
+                      style: TextStyle(
+                        color: Colors.grey.shade500,
+                        fontSize: 13.5,
+                      ),
                     ),
                   )
-                : ListView.separated(
-                    padding: const EdgeInsets.all(16),
+                : ListView.builder(
+                    padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
                     itemCount: dataToShow.length,
-                    separatorBuilder: (context, index) => const Divider(
-                      height: 24,
-                      thickness: 0.5,
-                      color: Colors.grey,
-                    ),
                     itemBuilder: (context, index) {
-                      final item = dataToShow[index];
+                      final item = dataToShow[index] as Map;
                       return GestureDetector(
                         onTap: () {
                           // TODO: Arahkan ke detail percakapan
@@ -229,21 +319,28 @@ class _HistoryPageState extends State<HistoryPage> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              item['title'],
+                              item['title'].toString(),
                               style: const TextStyle(
-                                color: AppColors.navy,
-                                fontSize: 15,
-                                fontWeight: FontWeight.w600,
+                                color: AppColors.textDark,
+                                fontSize: 14.5,
+                                fontWeight: FontWeight.w500,
                               ),
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              _formatDate(item['date']),
-                              style: const TextStyle(
-                                color: AppColors.textGray,
-                                fontSize: 12,
+                              _formatDate(item['date'] as DateTime),
+                              style: TextStyle(
+                                color: Colors.grey.shade600,
+                                fontSize: 11,
                               ),
                             ),
+                            const SizedBox(height: 12),
+                            Divider(
+                              height: 1,
+                              thickness: 1,
+                              color: Colors.grey.shade200,
+                            ),
+                            const SizedBox(height: 14),
                           ],
                         ),
                       );
@@ -251,34 +348,47 @@ class _HistoryPageState extends State<HistoryPage> {
                   ),
           ),
         ),
-        const SizedBox(height: 20),
       ],
     );
   }
 
   Widget _buildDropdown({
     required String value,
-    required List<String> items,
-    required ValueChanged<String?> onChanged,
+    required List items,
+    required ValueChanged onChanged,
   }) {
     return Container(
-      height: 45,
-      padding: const EdgeInsets.symmetric(horizontal: 16),
+      height: 42,
+      padding: const EdgeInsets.symmetric(horizontal: 18),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.grey.shade300),
+        borderRadius: BorderRadius.circular(30),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: DropdownButtonHideUnderline(
-        child: DropdownButton<String>(
+        child: DropdownButton(
           value: value,
           isExpanded: true,
-          icon: const Icon(Icons.keyboard_arrow_down, color: AppColors.textDark),
-          style: const TextStyle(color: AppColors.textDark, fontSize: 14),
-          items: items.map((String item) {
-            return DropdownMenuItem<String>(
-              value: item,
-              child: Text(item),
+          borderRadius: BorderRadius.circular(20),
+          icon: const Icon(
+            Icons.keyboard_arrow_down_rounded,
+            color: AppColors.textDark,
+            size: 22,
+          ),
+          style: const TextStyle(
+            color: AppColors.textDark,
+            fontSize: 13.5,
+          ),
+          items: items.map((item) {
+            return DropdownMenuItem(
+              value: item.toString(),
+              child: Text(item.toString()),
             );
           }).toList(),
           onChanged: onChanged,
