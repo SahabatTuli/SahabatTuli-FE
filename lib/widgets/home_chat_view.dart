@@ -376,7 +376,7 @@ class _HomeChatViewState extends State<HomeChatView> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Image.asset(
-                      'assets/images/LogoAPP.webp',
+                      'assets/images/LogoAPP2.webp',
                       height: 32,
                       fit: BoxFit.contain,
                     ),

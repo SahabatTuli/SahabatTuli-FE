@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../theme/app_colors.dart';
+import 'add_friend_page.dart';
 import 'profile_page.dart';
 
 class CollaborationPage extends StatefulWidget {
@@ -199,7 +200,12 @@ class _CollaborationPageState extends State<CollaborationPage> {
                     const SizedBox(height: 18),
                     ElevatedButton(
                       onPressed: () {
-                        // TODO: Logika Tambah Teman
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const AddFriendPage(),
+                          ),
+                        );
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.navy,
