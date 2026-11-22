@@ -4,7 +4,7 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import '../theme/app_colors.dart';
 import '../widgets/primary_button.dart';
 import 'dashboard_page.dart';
-
+import 'register_page.dart';
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
 
@@ -53,7 +53,7 @@ class _LoginPageState extends State<LoginPage> {
                   const Text(
                     "Don't have an account yet? ",
                     style: TextStyle(
-                      fontFamily: 'Inter',
+                      fontFamily: 'Poppins',
                       fontWeight: FontWeight.w300,
                       color: AppColors.white,
                       fontSize: 12,
@@ -61,8 +61,12 @@ class _LoginPageState extends State<LoginPage> {
                   ),
                   GestureDetector(
                     onTap: () {
-                      // TODO: pindah ke halaman register
-                      Navigator.pop(context);
+                      Navigator.pushReplacement(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const RegisterPage(),
+                        ),
+                      );
                     },
                     child: const Text(
                       'Sign up',
@@ -104,7 +108,7 @@ class _LoginPageState extends State<LoginPage> {
                   child: const Text(
                     'Forgot Password?',
                     style: TextStyle(
-                      fontFamily: 'Inter',
+                      fontFamily: 'Poppins',
                       fontWeight: FontWeight.w300,
                       color: AppColors.white,
                       fontSize: 12,

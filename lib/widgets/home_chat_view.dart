@@ -445,7 +445,7 @@ class _HomeChatViewState extends State<HomeChatView> {
                 textAlign: TextAlign.center,
                 text: const TextSpan(
                   style: TextStyle(
-                    fontFamily: 'Inter',
+                    fontFamily: 'Poppins',
                     fontSize: 22,
                     color: AppColors.navy,
                   ),

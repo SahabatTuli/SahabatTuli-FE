@@ -33,23 +33,16 @@ class _DashboardPageState extends State<DashboardPage> {
               currentTabIndex: _currentIndex,
               onTabChanged: _onTabChanged,
             ),
-            const CollaborationPage(),
-            const HistoryPage(isTabMode: true),
+            CollaborationPage(
+              onBackToHome: () => _onTabChanged(0),
+            ),
+            HistoryPage(
+              isTabMode: true,
+              onBackToHome: () => _onTabChanged(0),
+            ),
           ],
         ),
       ),
-      floatingActionButton: _currentIndex == 1
-          ? FloatingActionButton(
-              onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Membuat room baru...')),
-                );
-              },
-              backgroundColor: AppColors.navy,
-              child: const Icon(Icons.add, color: Colors.white, size: 28),
-            )
-          : null,
-      // Tab 0 sudah membawa PillBottomNav sendiri di dalam HomeChatView
       bottomNavigationBar: _currentIndex == 0
           ? null
           : SafeArea(
