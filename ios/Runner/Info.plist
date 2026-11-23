@@ -7,7 +7,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Flutter Application Sahabattuli</string>
+	<string>SahabatTuli</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -15,7 +15,7 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>flutter_application_sahabattuli</string>
+	<string>SahabatTuli</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -66,5 +66,9 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>SahabatTuli membutuhkan akses mikrofon untuk merekam suara dan mengubahnya menjadi teks.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>SahabatTuli membutuhkan izin pengenalan suara (Speech Recognition) untuk fitur transkripsi langsung.</string>
 </dict>
 </plist>
