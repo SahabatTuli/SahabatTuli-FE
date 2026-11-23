@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:url_launcher/url_launcher.dart';
 import 'api_client.dart';
 
 class AuthResponse {
@@ -82,6 +83,111 @@ class AuthService {
       } else {
         message = 'Koneksi gagal: ${e.message}';
       }
+      throw Exception(message);
+    }
+  }
+
+  Future<void> signInWithGoogle() async {
+    try {
+      final callbackUrl = kIsWeb
+          ? Uri.base.origin
+          : '${ApiClient.baseUrl}/api/auth/callback/google';
+
+      final response = await ApiClient.dio.post(
+        '/api/auth/sign-in/social',
+        data: {
+          'provider': 'google',
+          'callbackURL': callbackUrl,
+        },
+      );
+
+      final data = response.data is Map ? Map.from(response.data as Map) : {};
+      final authUrl = data['url']?.toString() ?? '';
+
+      if (authUrl.isEmpty) {
+        throw Exception('URL Google OAuth tidak diterima dari server');
+      }
+
+      final uri = Uri.parse(authUrl);
+      final launched = await launchUrl(
+        uri,
+        mode: kIsWeb
+            ? LaunchMode.platformDefault
+            : LaunchMode.externalApplication,
+        webOnlyWindowName: '_self',
+      );
+
+      if (!launched) {
+        throw Exception('Gagal membuka halaman login Google');
+      }
+    } on DioException catch (e) {
+      final data = e.response?.data;
+      final message = (data is Map && data['message'] != null)
+          ? data['message'].toString()
+          : 'Gagal memulai login Google';
+      throw Exception(message);
+    }
+  }
+
+  Future<void> requestPasswordReset({required String email}) async {
+    final redirectTo = kIsWeb
+        ? '${Uri.base.origin}/reset-password'
+        : '${ApiClient.baseUrl}/reset-password';
+
+    try {
+      await ApiClient.dio.post(
+        '/api/auth/request-password-reset',
+        data: {
+          'email': email.trim(),
+          'redirectTo': redirectTo,
+        },
+      );
+    } on DioException catch (e) {
+      // Fallback untuk versi Better Auth yang memakai endpoint /forget-password
+      if (e.response?.statusCode == 404) {
+        try {
+          await ApiClient.dio.post(
+            '/api/auth/forget-password',
+            data: {
+              'email': email.trim(),
+              'redirectTo': redirectTo,
+            },
+          );
+          return;
+        } on DioException catch (fallbackErr) {
+          final data = fallbackErr.response?.data;
+          final message = (data is Map && data['message'] != null)
+              ? data['message'].toString()
+              : 'Gagal mengirim tautan reset password';
+          throw Exception(message);
+        }
+      }
+
+      final data = e.response?.data;
+      final message = (data is Map && data['message'] != null)
+          ? data['message'].toString()
+          : 'Gagal mengirim tautan reset password';
+      throw Exception(message);
+    }
+  }
+
+  Future<void> resetPassword({
+    required String newPassword,
+    required String token,
+  }) async {
+    try {
+      await ApiClient.dio.post(
+        '/api/auth/reset-password',
+        data: {
+          'newPassword': newPassword,
+          'token': token.trim(),
+        },
+      );
+    } on DioException catch (e) {
+      final data = e.response?.data;
+      final message = (data is Map && data['message'] != null)
+          ? data['message'].toString()
+          : 'Token tidak valid atau sudah kedaluwarsa';
       throw Exception(message);
     }
   }

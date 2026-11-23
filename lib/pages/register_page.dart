@@ -23,6 +23,7 @@ class _RegisterPageState extends State<RegisterPage> {
   bool _obscurePassword = true;
   bool _obscureConfirm = true;
   bool _isLoading = false;
+  bool _isGoogleLoading = false;
 
   @override
   void dispose() {
@@ -79,6 +80,20 @@ class _RegisterPageState extends State<RegisterPage> {
       _showSnackBar(e.toString().replaceFirst('Exception: ', ''));
     } finally {
       if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _handleGoogleSignUp() async {
+    if (_isGoogleLoading) return;
+    setState(() => _isGoogleLoading = true);
+
+    try {
+      await _authService.signInWithGoogle();
+    } catch (e) {
+      if (!mounted) return;
+      _showSnackBar(e.toString().replaceFirst('Exception: ', ''));
+    } finally {
+      if (mounted) setState(() => _isGoogleLoading = false);
     }
   }
 
@@ -191,11 +206,11 @@ class _RegisterPageState extends State<RegisterPage> {
               ),
               const SizedBox(height: 24),
               PrimaryButton(
-                text: 'Continue with Google',
+                text: _isGoogleLoading
+                    ? 'Redirecting to Google...'
+                    : 'Continue with Google',
                 imagePath: 'assets/images/google.png',
-                onPressed: () {
-                  // TODO: register google
-                },
+                onPressed: _isGoogleLoading ? () {} : _handleGoogleSignUp,
               ),
               const SizedBox(height: 32),
             ],
