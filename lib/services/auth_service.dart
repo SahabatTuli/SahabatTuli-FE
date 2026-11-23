@@ -2,10 +2,33 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'api_client.dart';
 
-typedef AuthResponse = Map<String, dynamic>;
+class AuthResponse {
+  final String id;
+  final String name;
+  final String email;
+  final String? image;
+
+  AuthResponse({
+    required this.id,
+    required this.name,
+    required this.email,
+    this.image,
+  });
+
+  factory AuthResponse.from(dynamic data) {
+    if (data is AuthResponse) return data;
+    final map = data is Map ? Map.from(data) : {};
+    return AuthResponse(
+      id: map['id']?.toString() ?? '',
+      name: map['name']?.toString() ?? 'User',
+      email: map['email']?.toString() ?? '',
+      image: map['image']?.toString(),
+    );
+  }
+}
 
 class AuthService {
-  Future<AuthResponse> signInWithEmail({
+  Future signInWithEmail({
     required String email,
     required String password,
   }) async {
@@ -17,14 +40,15 @@ class AuthService {
           'password': password,
         },
       );
-      return AuthResponse.from(response.data);
+      return Map.from(response.data as Map);
     } on DioException catch (e) {
       final data = e.response?.data;
       String message = 'Login gagal, periksa email & password';
       if (data is Map && data['message'] != null) {
         message = data['message'].toString();
       } else if (e.response?.statusCode != null) {
-        message = 'Error ${e.response?.statusCode}: ${e.response?.statusMessage}';
+        message =
+            'Error ${e.response?.statusCode}: ${e.response?.statusMessage}';
       } else {
         message = 'Koneksi gagal: ${e.message}';
       }
@@ -32,7 +56,7 @@ class AuthService {
     }
   }
 
-  Future<AuthResponse> signUpWithEmail({
+  Future signUpWithEmail({
     required String name,
     required String email,
     required String password,
@@ -46,14 +70,15 @@ class AuthService {
           'password': password,
         },
       );
-      return AuthResponse.from(response.data);
+      return Map.from(response.data as Map);
     } on DioException catch (e) {
       final data = e.response?.data;
       String message = 'Registrasi gagal, coba lagi';
       if (data is Map && data['message'] != null) {
         message = data['message'].toString();
       } else if (e.response?.statusCode != null) {
-        message = 'Error ${e.response?.statusCode}: ${e.response?.statusMessage}';
+        message =
+            'Error ${e.response?.statusCode}: ${e.response?.statusMessage}';
       } else {
         message = 'Koneksi gagal: ${e.message}';
       }
@@ -61,7 +86,7 @@ class AuthService {
     }
   }
 
-  Future<AuthResponse?> getSession() async {
+  Future getSession() async {
     if (!kIsWeb) {
       final cookie = await ApiClient.getSavedCookie();
       if (cookie == null || cookie.isEmpty) return null;
@@ -71,12 +96,29 @@ class AuthService {
       final response = await ApiClient.dio.get('/api/auth/get-session');
       if (response.data == null) return null;
 
-      final data = AuthResponse.from(response.data);
+      final data = Map.from(response.data as Map);
       if (data['user'] == null) return null;
 
       return data;
     } on DioException {
       return null;
+    }
+  }
+
+  Future<void> updateUserName(String newName) async {
+    try {
+      await ApiClient.dio.post(
+        '/api/auth/update-user',
+        data: {
+          'name': newName.trim(),
+        },
+      );
+    } on DioException catch (e) {
+      final data = e.response?.data;
+      final message = (data is Map && data['message'] != null)
+          ? data['message'].toString()
+          : 'Gagal memperbarui username';
+      throw Exception(message);
     }
   }
 

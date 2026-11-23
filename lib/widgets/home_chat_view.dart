@@ -4,6 +4,8 @@ import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:flutter_tts/flutter_tts.dart';
 
 import '../models/message.dart';
+import '../services/auth_service.dart';
+import '../services/history_service.dart';
 import '../theme/app_colors.dart';
 import '../pages/profile_page.dart';
 import 'chat_bubble.dart';
@@ -28,10 +30,14 @@ class _HomeChatViewState extends State<HomeChatView> {
 
   final stt.SpeechToText _speech = stt.SpeechToText();
   final FlutterTts _flutterTts = FlutterTts();
+  final AuthService _authService = AuthService();
+  final HistoryService _historyService = HistoryService();
 
   bool _isRecording = false;
   bool _isChatStarted = false;
   bool _isTTSMode = false;
+  bool _isSaving = false;
+  String _userName = 'User';
 
   Duration _recordingDuration = Duration.zero;
   Timer? _timer;
@@ -45,11 +51,28 @@ class _HomeChatViewState extends State<HomeChatView> {
   void initState() {
     super.initState();
     _initTts();
+    _loadUserName();
   }
 
   Future<void> _initTts() async {
     await _flutterTts.setLanguage("id-ID");
     await _flutterTts.setSpeechRate(0.5);
+  }
+
+  Future<void> _loadUserName() async {
+    try {
+      final session = await _authService.getSession();
+      if (!mounted) return;
+      final user = session?['user'];
+      if (user is Map && user['name'] != null) {
+        final fullName = user['name'].toString().trim();
+        if (fullName.isNotEmpty) {
+          setState(() {
+            _userName = fullName.split(' ').first;
+          });
+        }
+      }
+    } catch (_) {}
   }
 
   @override
@@ -226,110 +249,157 @@ class _HomeChatViewState extends State<HomeChatView> {
   }
 
   void _showSaveDialog(BuildContext context) {
-    final TextEditingController nameController = TextEditingController();
-    nameController.text =
-        'Percakapan ${_messages.isNotEmpty ? _messages.length : 1}';
+    if (_messages.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Belum ada percakapan untuk disimpan'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+
+    final TextEditingController nameController = TextEditingController(
+      text: 'Percakapan 1',
+    );
 
     showDialog(
       context: context,
-      builder: (BuildContext context) {
-        return Dialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(24.0),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text(
-                  'Simpan percakapan?',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textDark,
-                  ),
-                ),
-                const SizedBox(height: 20),
-                TextField(
-                  controller: nameController,
-                  decoration: InputDecoration(
-                    filled: true,
-                    fillColor: const Color(0xFFE0E0E0),
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 14,
-                    ),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(30),
-                      borderSide: BorderSide.none,
-                    ),
-                    hintText: 'Nama percakapan...',
-                  ),
-                ),
-                const SizedBox(height: 24),
-                Row(
+      barrierColor: Colors.black.withOpacity(0.45),
+      builder: (BuildContext dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return Dialog(
+              backgroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(24),
+              ),
+              insetPadding: const EdgeInsets.symmetric(horizontal: 36),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(24, 30, 24, 26),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    Expanded(
-                      child: SizedBox(
-                        height: 45,
-                        child: OutlinedButton(
-                          onPressed: () => Navigator.pop(context),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: AppColors.textGray,
-                            side: BorderSide(color: Colors.grey.shade400),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(30),
-                            ),
+                    const Text(
+                      'Simpan percakapan?',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w500,
+                        color: AppColors.textDark,
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    SizedBox(
+                      height: 40,
+                      child: TextField(
+                        controller: nameController,
+                        autofocus: true,
+                        enabled: !_isSaving,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: AppColors.textDark,
+                        ),
+                        decoration: InputDecoration(
+                          hintText: 'Percakapan 1',
+                          hintStyle: TextStyle(
+                            color: Colors.grey.shade500,
+                            fontSize: 13,
                           ),
-                          child: const Text(
-                            'Batal',
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                            ),
+                          filled: true,
+                          fillColor: const Color(0xFFE0E0E0),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 18,
+                            vertical: 0,
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(30),
+                            borderSide: BorderSide.none,
                           ),
                         ),
                       ),
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: SizedBox(
-                        height: 45,
-                        child: ElevatedButton(
-                          onPressed: () {
-                            final namaPercakapan = nameController.text;
-                            Navigator.pop(context);
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  'Percakapan "$namaPercakapan" berhasil disimpan!',
-                                ),
-                              ),
-                            );
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.navy,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(30),
-                            ),
-                          ),
-                          child: const Text(
-                            'Simpan',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w600,
-                              fontSize: 14,
-                            ),
+                    const SizedBox(height: 20),
+                    SizedBox(
+                      height: 36,
+                      child: ElevatedButton(
+                        onPressed: _isSaving
+                            ? null
+                            : () async {
+                                final namaPercakapan =
+                                    nameController.text.trim().isEmpty
+                                        ? 'Percakapan 1'
+                                        : nameController.text.trim();
+
+                                setDialogState(() => _isSaving = true);
+                                setState(() => _isSaving = true);
+
+                                try {
+                                  await _historyService.saveConversationHistory(
+                                    title: namaPercakapan,
+                                    messages: List<Message>.from(_messages),
+                                  );
+
+                                  if (!mounted) return;
+                                  Navigator.pop(dialogContext);
+                                  ScaffoldMessenger.of(this.context)
+                                      .showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        'Percakapan "$namaPercakapan" berhasil disimpan ke History!',
+                                      ),
+                                    ),
+                                  );
+                                } catch (e) {
+                                  if (!mounted) return;
+                                  ScaffoldMessenger.of(this.context)
+                                      .showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        e
+                                            .toString()
+                                            .replaceFirst('Exception: ', ''),
+                                      ),
+                                      backgroundColor: Colors.redAccent,
+                                    ),
+                                  );
+                                } finally {
+                                  if (mounted) {
+                                    setState(() => _isSaving = false);
+                                  }
+                                }
+                              },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.navy,
+                          elevation: 0,
+                          padding: const EdgeInsets.symmetric(horizontal: 28),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(24),
                           ),
                         ),
+                        child: _isSaving
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : const Text(
+                                'Simpan',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w500,
+                                  fontSize: 12.5,
+                                ),
+                              ),
                       ),
                     ),
                   ],
                 ),
-              ],
-            ),
-          ),
+              ),
+            );
+          },
         );
       },
     );
@@ -443,20 +513,20 @@ class _HomeChatViewState extends State<HomeChatView> {
             children: [
               RichText(
                 textAlign: TextAlign.center,
-                text: const TextSpan(
-                  style: TextStyle(
+                text: TextSpan(
+                  style: const TextStyle(
                     fontFamily: 'Poppins',
                     fontSize: 22,
                     color: AppColors.navy,
                   ),
                   children: [
-                    TextSpan(
+                    const TextSpan(
                       text: 'Salam hangat, ',
                       style: TextStyle(fontWeight: FontWeight.w400),
                     ),
                     TextSpan(
-                      text: 'User.',
-                      style: TextStyle(fontWeight: FontWeight.w700),
+                      text: '$_userName.',
+                      style: const TextStyle(fontWeight: FontWeight.w700),
                     ),
                   ],
                 ),
