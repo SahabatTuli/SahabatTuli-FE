@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../services/api_client.dart';
 import '../services/auth_service.dart';
@@ -24,6 +25,7 @@ class _DashboardPageState extends State<DashboardPage> {
   int _currentIndex = 0;
   late bool _isCheckingSession;
   AuthResponse? _currentUser;
+  DateTime? _lastBackPressTime;
 
   @override
   void initState() {
@@ -45,9 +47,10 @@ class _DashboardPageState extends State<DashboardPage> {
     if (sessionData == null || sessionData['user'] == null) {
       await ApiClient.clearCookie();
       if (!mounted) return;
-      Navigator.pushReplacement(
+      Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(builder: (context) => const WelcomePage()),
+        (route) => false,
       );
       return;
     }
@@ -62,6 +65,28 @@ class _DashboardPageState extends State<DashboardPage> {
     setState(() => _currentIndex = index);
   }
 
+  void _handleSystemBack() {
+    if (_currentIndex != 0) {
+      setState(() => _currentIndex = 0);
+      return;
+    }
+
+    final now = DateTime.now();
+    if (_lastBackPressTime == null ||
+        now.difference(_lastBackPressTime!) > const Duration(seconds: 2)) {
+      _lastBackPressTime = now;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Tekan sekali lagi untuk keluar dari aplikasi'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+
+    SystemNavigator.pop();
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_isCheckingSession) {
@@ -73,39 +98,47 @@ class _DashboardPageState extends State<DashboardPage> {
       );
     }
 
-    return Scaffold(
-      backgroundColor: const Color(0xFFF2F2F2),
-      body: SafeArea(
-        bottom: false,
-        child: IndexedStack(
-          index: _currentIndex,
-          children: [
-            HomeChatView(
-              currentTabIndex: _currentIndex,
-              onTabChanged: _onTabChanged,
-            ),
-            CollaborationPage(
-              onBackToHome: () => _onTabChanged(0),
-            ),
-            HistoryPage(
-              isTabMode: true,
-              onBackToHome: () => _onTabChanged(0),
-            ),
-          ],
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) {
+          _handleSystemBack();
+        }
+      },
+      child: Scaffold(
+        backgroundColor: const Color(0xFFF2F2F2),
+        body: SafeArea(
+          bottom: false,
+          child: IndexedStack(
+            index: _currentIndex,
+            children: [
+              HomeChatView(
+                currentTabIndex: _currentIndex,
+                onTabChanged: _onTabChanged,
+              ),
+              CollaborationPage(
+                onBackToHome: () => _onTabChanged(0),
+              ),
+              HistoryPage(
+                isTabMode: true,
+                onBackToHome: () => _onTabChanged(0),
+              ),
+            ],
+          ),
         ),
-      ),
-      bottomNavigationBar: _currentIndex == 0
-          ? null
-          : SafeArea(
-              top: false,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                child: CustomBottomNav(
-                  currentIndex: _currentIndex,
-                  onTap: _onTabChanged,
+        bottomNavigationBar: _currentIndex == 0
+            ? null
+            : SafeArea(
+                top: false,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                  child: CustomBottomNav(
+                    currentIndex: _currentIndex,
+                    onTap: _onTabChanged,
+                  ),
                 ),
               ),
-            ),
+      ),
     );
   }
 }
