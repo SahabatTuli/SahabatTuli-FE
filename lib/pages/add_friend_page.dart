@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 
+import '../services/friend_services.dart';
 import '../theme/app_colors.dart';
 import '../widgets/custom_button_nav.dart';
 import 'profile_page.dart';
@@ -13,44 +15,132 @@ class AddFriendPage extends StatefulWidget {
 
 class _AddFriendPageState extends State<AddFriendPage> {
   final TextEditingController _searchController = TextEditingController();
+  final FriendService _friendService = FriendService();
 
-  final List _allUsers = [
-    {
-      'id': '2',
-      'name': 'User 2',
-      'isAdded': false,
-    },
-  ];
+  List _users = [];
+  Set _friendIds = {};
+  final Set _processingIds = {};
 
-  String _searchQuery = '';
+  bool _isLoading = true;
+  Timer? _debounce;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadInitialFriends();
+  }
 
   @override
   void dispose() {
+    _debounce?.cancel();
     _searchController.dispose();
     super.dispose();
   }
 
-  List get _filteredUsers {
-    if (_searchQuery.trim().isEmpty) return _allUsers;
-    return _allUsers.where((user) {
-      final name = user['name'].toString().toLowerCase();
-      return name.contains(_searchQuery.trim().toLowerCase());
-    }).toList();
+  Future<void> _loadInitialFriends() async {
+    setState(() => _isLoading = true);
+    try {
+      final friends = await _friendService.getFriends();
+      if (!mounted) return;
+      setState(() {
+        _friendIds = friends.map((f) => f['id'].toString()).toSet();
+        _users = friends;
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      _showSnackBar(
+        e.toString().replaceFirst('Exception: ', ''),
+        isError: true,
+      );
+    }
   }
 
-  void _toggleAddFriend(Map user) {
+  void _onSearchChanged(String value) {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 400), () async {
+      final query = value.trim();
+      if (query.isEmpty) {
+        await _loadInitialFriends();
+        return;
+      }
+
+      setState(() => _isLoading = true);
+      try {
+        final results = await _friendService.searchUsers(query);
+        if (!mounted) return;
+        for (final user in results) {
+          final id = user['id'].toString();
+          if (_friendIds.contains(id)) {
+            user['isAdded'] = true;
+          }
+        }
+        setState(() {
+          _users = results;
+          _isLoading = false;
+        });
+      } catch (e) {
+        if (!mounted) return;
+        setState(() => _isLoading = false);
+        _showSnackBar(
+          e.toString().replaceFirst('Exception: ', ''),
+          isError: true,
+        );
+      }
+    });
+  }
+
+  Future<void> _toggleAddFriend(Map user) async {
+    final friendId = user['id'].toString();
+    if (friendId.isEmpty || _processingIds.contains(friendId)) return;
+
+    final currentlyAdded = user['isAdded'] == true;
+
     setState(() {
-      user['isAdded'] = !(user['isAdded'] as bool);
+      _processingIds.add(friendId);
     });
 
-    final added = user['isAdded'] as bool;
+    try {
+      if (currentlyAdded) {
+        await _friendService.removeFriend(friendId);
+        _friendIds.remove(friendId);
+        user['isAdded'] = false;
+      } else {
+        await _friendService.addFriend(friendId);
+        _friendIds.add(friendId);
+        user['isAdded'] = true;
+      }
+
+      if (!mounted) return;
+      setState(() {});
+
+      final added = user['isAdded'] == true;
+      _showSnackBar(
+        added
+            ? '${user['name']} ditambahkan ke daftar teman'
+            : '${user['name']} dihapus dari daftar teman',
+      );
+    } catch (e) {
+      if (!mounted) return;
+      _showSnackBar(
+        e.toString().replaceFirst('Exception: ', ''),
+        isError: true,
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _processingIds.remove(friendId);
+        });
+      }
+    }
+  }
+
+  void _showSnackBar(String message, {bool isError = false}) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(
-          added
-              ? '${user['name']} ditambahkan ke daftar teman'
-              : '${user['name']} dihapus dari daftar teman',
-        ),
+        content: Text(message),
+        backgroundColor: isError ? Colors.redAccent : null,
         duration: const Duration(seconds: 2),
       ),
     );
@@ -58,7 +148,7 @@ class _AddFriendPageState extends State<AddFriendPage> {
 
   @override
   Widget build(BuildContext context) {
-    final users = _filteredUsers;
+    final isSearching = _searchController.text.trim().isNotEmpty;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF2F2F2),
@@ -145,9 +235,7 @@ class _AddFriendPageState extends State<AddFriendPage> {
                     Expanded(
                       child: TextField(
                         controller: _searchController,
-                        onChanged: (value) {
-                          setState(() => _searchQuery = value);
-                        },
+                        onChanged: _onSearchChanged,
                         style: const TextStyle(
                           color: AppColors.textDark,
                           fontSize: 13.5,
@@ -164,11 +252,24 @@ class _AddFriendPageState extends State<AddFriendPage> {
                         ),
                       ),
                     ),
-                    const Icon(
-                      Icons.search_rounded,
-                      color: AppColors.textDark,
-                      size: 22,
-                    ),
+                    if (_searchController.text.isNotEmpty)
+                      GestureDetector(
+                        onTap: () {
+                          _searchController.clear();
+                          _onSearchChanged('');
+                        },
+                        child: Icon(
+                          Icons.close_rounded,
+                          color: Colors.grey.shade500,
+                          size: 20,
+                        ),
+                      )
+                    else
+                      const Icon(
+                        Icons.search_rounded,
+                        color: AppColors.textDark,
+                        size: 22,
+                      ),
                   ],
                 ),
               ),
@@ -194,97 +295,136 @@ class _AddFriendPageState extends State<AddFriendPage> {
                       ),
                     ],
                   ),
-                  child: users.isEmpty
-                      ? Center(
-                          child: Text(
-                            'Pengguna tidak ditemukan',
-                            style: TextStyle(
-                              color: Colors.grey.shade500,
-                              fontSize: 13,
-                            ),
+                  child: _isLoading
+                      ? const Center(
+                          child: CircularProgressIndicator(
+                            color: AppColors.navy,
                           ),
                         )
-                      : ListView.separated(
-                          itemCount: users.length,
-                          separatorBuilder: (_, __) => Divider(
-                            color: Colors.grey.shade200,
-                            height: 24,
-                            thickness: 1,
-                          ),
-                          itemBuilder: (context, index) {
-                            final user = users[index] as Map;
-                            final isAdded = user['isAdded'] as bool;
+                      : _users.isEmpty
+                          ? Center(
+                              child: Text(
+                                isSearching
+                                    ? 'Pengguna tidak ditemukan'
+                                    : 'Belum ada teman. Cari nama atau email di atas',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: Colors.grey.shade500,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            )
+                          : ListView.separated(
+                              itemCount: _users.length,
+                              separatorBuilder: (_, __) => Divider(
+                                color: Colors.grey.shade200,
+                                height: 24,
+                                thickness: 1,
+                              ),
+                              itemBuilder: (context, index) {
+                                final user = _users[index] as Map;
+                                final userId = user['id'].toString();
+                                final isAdded = user['isAdded'] == true;
+                                final isProcessing =
+                                    _processingIds.contains(userId);
 
-                            return Column(
-                              children: [
-                                Row(
+                                return Column(
                                   children: [
-                                    // Avatar Hijau Muda
-                                    Container(
-                                      width: 40,
-                                      height: 40,
-                                      decoration: const BoxDecoration(
-                                        color: Color(0xFF9CCC65),
-                                        shape: BoxShape.circle,
-                                      ),
-                                      child: const Icon(
-                                        Icons.person,
-                                        color: Colors.white,
-                                        size: 24,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 12),
-                                    // Nama User
-                                    Expanded(
-                                      child: Text(
-                                        user['name'].toString(),
-                                        style: const TextStyle(
-                                          color: AppColors.textDark,
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.w500,
-                                        ),
-                                      ),
-                                    ),
-                                    // Tombol + Add
-                                    SizedBox(
-                                      height: 30,
-                                      child: ElevatedButton(
-                                        onPressed: () => _toggleAddFriend(user),
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor: isAdded
-                                              ? Colors.grey.shade400
-                                              : AppColors.navy,
-                                          elevation: 0,
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 16,
+                                    Row(
+                                      children: [
+                                        Container(
+                                          width: 40,
+                                          height: 40,
+                                          decoration: const BoxDecoration(
+                                            color: Color(0xFF9CCC65),
+                                            shape: BoxShape.circle,
                                           ),
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius:
-                                                BorderRadius.circular(20),
-                                          ),
-                                        ),
-                                        child: Text(
-                                          isAdded ? 'Added' : '+ Add',
-                                          style: const TextStyle(
+                                          child: const Icon(
+                                            Icons.person,
                                             color: Colors.white,
-                                            fontSize: 11,
-                                            fontWeight: FontWeight.w500,
+                                            size: 24,
                                           ),
                                         ),
-                                      ),
+                                        const SizedBox(width: 12),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                user['name'].toString(),
+                                                style: const TextStyle(
+                                                  color: AppColors.textDark,
+                                                  fontSize: 14,
+                                                  fontWeight: FontWeight.w500,
+                                                ),
+                                              ),
+                                              if (user['email']
+                                                  .toString()
+                                                  .isNotEmpty)
+                                                Text(
+                                                  user['email'].toString(),
+                                                  style: TextStyle(
+                                                    color: Colors.grey.shade500,
+                                                    fontSize: 11.5,
+                                                  ),
+                                                ),
+                                            ],
+                                          ),
+                                        ),
+                                        SizedBox(
+                                          height: 30,
+                                          child: ElevatedButton(
+                                            onPressed: isProcessing
+                                                ? null
+                                                : () => _toggleAddFriend(user),
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor: isAdded
+                                                  ? Colors.grey.shade400
+                                                  : AppColors.navy,
+                                              elevation: 0,
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                horizontal: 16,
+                                              ),
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(20),
+                                              ),
+                                            ),
+                                            child: isProcessing
+                                                ? const SizedBox(
+                                                    width: 14,
+                                                    height: 14,
+                                                    child:
+                                                        CircularProgressIndicator(
+                                                      strokeWidth: 2,
+                                                      color: Colors.white,
+                                                    ),
+                                                  )
+                                                : Text(
+                                                    isAdded ? 'Added' : '+ Add',
+                                                    style: const TextStyle(
+                                                      color: Colors.white,
+                                                      fontSize: 11,
+                                                      fontWeight:
+                                                          FontWeight.w500,
+                                                    ),
+                                                  ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 12),
+                                    Divider(
+                                      color: Colors.grey.shade200,
+                                      height: 1,
+                                      thickness: 1,
                                     ),
                                   ],
-                                ),
-                                const SizedBox(height: 12),
-                                Divider(
-                                  color: Colors.grey.shade200,
-                                  height: 1,
-                                  thickness: 1,
-                                ),
-                              ],
-                            );
-                          },
-                        ),
+                                );
+                              },
+                            ),
                 ),
               ),
             ),
@@ -298,7 +438,6 @@ class _AddFriendPageState extends State<AddFriendPage> {
           child: CustomBottomNav(
             currentIndex: 1,
             onTap: (index) {
-              // Kembali ke halaman utama / tab yang dipilih
               Navigator.pop(context);
             },
           ),

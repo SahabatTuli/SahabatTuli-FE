@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 
+import '../services/auth_service.dart';
 import '../theme/app_colors.dart';
 import '../widgets/primary_button.dart';
+import 'dashboard_page.dart';
+import 'login_page.dart';
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
@@ -11,15 +14,15 @@ class RegisterPage extends StatefulWidget {
 }
 
 class _RegisterPageState extends State<RegisterPage> {
-  // Controller untuk tiap input
   final _usernameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
+  final _authService = AuthService();
 
-  // Untuk toggle password visibility
   bool _obscurePassword = true;
   bool _obscureConfirm = true;
+  bool _isLoading = false;
 
   @override
   void dispose() {
@@ -28,6 +31,61 @@ class _RegisterPageState extends State<RegisterPage> {
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     super.dispose();
+  }
+
+  Future<void> _handleRegister() async {
+    final name = _usernameController.text.trim();
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
+    final confirmPassword = _confirmPasswordController.text;
+
+    if (name.isEmpty || email.isEmpty || password.isEmpty) {
+      _showSnackBar('Semua kolom wajib diisi');
+      return;
+    }
+
+    if (password.length < 8) {
+      _showSnackBar('Password minimal 8 karakter');
+      return;
+    }
+
+    if (password != confirmPassword) {
+      _showSnackBar('Konfirmasi password tidak cocok');
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      final result = await _authService.signUpWithEmail(
+        name: name,
+        email: email,
+        password: password,
+      );
+
+      if (!mounted) return;
+      final user = result['user'] != null
+          ? AuthResponse.from(result['user'])
+          : null;
+
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => DashboardPage(initialUser: user),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      _showSnackBar(e.toString().replaceFirst('Exception: ', ''));
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  void _showSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), backgroundColor: Colors.redAccent),
+    );
   }
 
   @override
@@ -41,7 +99,6 @@ class _RegisterPageState extends State<RegisterPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const SizedBox(height: 40),
-
               const Text(
                 'Sign up',
                 style: TextStyle(
@@ -51,7 +108,6 @@ class _RegisterPageState extends State<RegisterPage> {
                 ),
               ),
               const SizedBox(height: 4),
-
               Row(
                 children: [
                   const Text(
@@ -60,8 +116,12 @@ class _RegisterPageState extends State<RegisterPage> {
                   ),
                   GestureDetector(
                     onTap: () {
-                      // TODO: pindah ke halaman login
-                      Navigator.pop(context);
+                      Navigator.pushReplacement(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const LoginPage(),
+                        ),
+                      );
                     },
                     child: const Text(
                       'Sign In',
@@ -77,17 +137,14 @@ class _RegisterPageState extends State<RegisterPage> {
                 ],
               ),
               const SizedBox(height: 32),
-
               _buildInput(controller: _usernameController, hint: 'Username'),
               const SizedBox(height: 16),
-
               _buildInput(
                 controller: _emailController,
                 hint: 'Email Address',
                 keyboardType: TextInputType.emailAddress,
               ),
               const SizedBox(height: 16),
-
               _buildInput(
                 controller: _passwordController,
                 hint: 'Create Password (Strong Character)',
@@ -97,7 +154,6 @@ class _RegisterPageState extends State<RegisterPage> {
                 },
               ),
               const SizedBox(height: 16),
-
               _buildInput(
                 controller: _confirmPasswordController,
                 hint: 'Confirm Password',
@@ -107,18 +163,13 @@ class _RegisterPageState extends State<RegisterPage> {
                 },
               ),
               const SizedBox(height: 24),
-
-              // Tombol Register
               PrimaryButton(
-                text: 'Register',
-                onPressed: () {
-                  // TODO: proses registrasi
-                },
+                text: _isLoading ? 'Creating account...' : 'Register',
+                onPressed: _isLoading ? () {} : _handleRegister,
               ),
               const SizedBox(height: 24),
-
-              Row(
-                children: const [
+              const Row(
+                children: [
                   Expanded(
                     child: Divider(color: AppColors.white, thickness: 1),
                   ),
@@ -139,7 +190,6 @@ class _RegisterPageState extends State<RegisterPage> {
                 ],
               ),
               const SizedBox(height: 24),
-
               PrimaryButton(
                 text: 'Continue with Google',
                 imagePath: 'assets/images/google.png',
@@ -147,7 +197,6 @@ class _RegisterPageState extends State<RegisterPage> {
                   // TODO: register google
                 },
               ),
-
               const SizedBox(height: 32),
             ],
           ),

@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
+import '../services/auth_service.dart';
 import '../theme/app_colors.dart';
 import '../widgets/primary_button.dart';
 import 'dashboard_page.dart';
 import 'register_page.dart';
+
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
 
@@ -15,14 +17,58 @@ class LoginPage extends StatefulWidget {
 class _LoginPageState extends State<LoginPage> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _authService = AuthService();
 
   bool _obscurePassword = true;
+  bool _isLoading = false;
 
   @override
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
+  }
+
+  Future<void> _handleLogin() async {
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
+
+    if (email.isEmpty || password.isEmpty) {
+      _showSnackBar('Email dan password wajib diisi');
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      final result = await _authService.signInWithEmail(
+        email: email,
+        password: password,
+      );
+
+      if (!mounted) return;
+      final user = result['user'] != null
+          ? AuthResponse.from(result['user'])
+          : null;
+
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => DashboardPage(initialUser: user),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      _showSnackBar(e.toString().replaceFirst('Exception: ', ''));
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  void _showSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), backgroundColor: Colors.redAccent),
+    );
   }
 
   @override
@@ -36,8 +82,6 @@ class _LoginPageState extends State<LoginPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const SizedBox(height: 40),
-
-              // Judul "Sign in"
               const Text(
                 'Sign in',
                 style: TextStyle(
@@ -47,7 +91,6 @@ class _LoginPageState extends State<LoginPage> {
                 ),
               ),
               const SizedBox(height: 4),
-
               Row(
                 children: [
                   const Text(
@@ -82,14 +125,12 @@ class _LoginPageState extends State<LoginPage> {
                 ],
               ),
               const SizedBox(height: 32),
-
               _buildInput(
                 controller: _emailController,
                 hint: 'Email Address',
                 keyboardType: TextInputType.emailAddress,
               ),
               const SizedBox(height: 16),
-
               _buildInput(
                 controller: _passwordController,
                 hint: 'Password',
@@ -99,12 +140,9 @@ class _LoginPageState extends State<LoginPage> {
                 },
               ),
               const SizedBox(height: 12),
-
               Center(
                 child: GestureDetector(
-                  onTap: () {
-                    // TODO: lupa password
-                  },
+                  onTap: () {},
                   child: const Text(
                     'Forgot Password?',
                     style: TextStyle(
@@ -119,22 +157,13 @@ class _LoginPageState extends State<LoginPage> {
                 ),
               ),
               const SizedBox(height: 20),
-
               PrimaryButton(
-                text: 'Login',
-                onPressed: () {
-                  Navigator.pushReplacement(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const DashboardPage(),
-                    ),
-                  );
-                },
+                text: _isLoading ? 'Signing in...' : 'Login',
+                onPressed: _isLoading ? () {} : _handleLogin,
               ),
               const SizedBox(height: 24),
-
-              Row(
-                children: const [
+              const Row(
+                children: [
                   Expanded(
                     child: Divider(color: AppColors.white, thickness: 1),
                   ),
@@ -155,7 +184,6 @@ class _LoginPageState extends State<LoginPage> {
                 ],
               ),
               const SizedBox(height: 24),
-
               PrimaryButton(
                 text: 'Continue with Google',
                 imagePath: 'assets/images/google.png',
@@ -164,15 +192,11 @@ class _LoginPageState extends State<LoginPage> {
                 },
               ),
               const SizedBox(height: 16),
-
               PrimaryButton(
                 text: 'Continue with Email',
                 icon: FontAwesomeIcons.envelope,
-                onPressed: () {
-                  // TODO: login email (dari halaman ini)
-                },
+                onPressed: () {},
               ),
-
               const SizedBox(height: 32),
             ],
           ),

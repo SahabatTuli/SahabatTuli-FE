@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
 import 'pages/welcome_page.dart';
+import 'services/api_client.dart';
+import 'pages/dashboard_page.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await ApiClient.init();
   runApp(const MyApp());
 }
 
@@ -17,7 +21,7 @@ class MyApp extends StatelessWidget {
         useMaterial3: true,
         fontFamily: 'Poppins',
       ),
-      home: const WelcomePage(),
+      home: DashboardPage(),
     );
   }
 }
