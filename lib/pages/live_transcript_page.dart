@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 
@@ -39,10 +41,14 @@ class _LiveTranscriptPageState extends State<LiveTranscriptPage> {
   int _participantCount = 1;
   bool _isHostUser = false;
   bool _isLoading = true;
-  bool _isListening = false;
+
+  // Menandai apakah Host menginginkan mic dalam posisi ON (terpisah dari status internal engine)
+  bool _isMicActive = false;
+  bool _isStartingSession = false;
   bool _speechAvailable = false;
   bool _isLeaving = false;
   bool _isSaving = false;
+  Timer? _restartTimer;
 
   @override
   void initState() {
@@ -53,6 +59,8 @@ class _LiveTranscriptPageState extends State<LiveTranscriptPage> {
 
   @override
   void dispose() {
+    _isMicActive = false;
+    _restartTimer?.cancel();
     _speech.stop();
     _socketService.leaveRoom(widget.roomId);
     _socketService.disconnect();
@@ -119,6 +127,8 @@ class _LiveTranscriptPageState extends State<LiveTranscriptPage> {
         },
         onRoomEnded: (message) {
           if (!mounted) return;
+          _isMicActive = false;
+          _restartTimer?.cancel();
           _speech.stop();
           _showSnackBar(message);
           Navigator.pop(context, true);
@@ -151,15 +161,27 @@ class _LiveTranscriptPageState extends State<LiveTranscriptPage> {
       _speechAvailable = await _speech.initialize(
         onStatus: (status) {
           if (!mounted) return;
+          // Ketika Android menghentikan sesi karena jeda bicara ('done' / 'notListening'),
+          // simpan sisa interim text (jika ada) lalu nyalakan ulang sesi secara otomatis.
           if (status == 'done' || status == 'notListening') {
-            setState(() => _isListening = false);
+            _flushInterimToFinal();
+            if (_isMicActive) {
+              _scheduleRestart(delayMs: 250);
+            }
           }
         },
         onError: (error) {
           if (!mounted) return;
-          setState(() => _isListening = false);
+          _flushInterimToFinal();
+
+          // Abaikan error timeout/no_match/busy agar mic tetap continuous selama _isMicActive == true
+          if (_isMicActive) {
+            final delay = error.errorMsg == 'error_busy' ? 600 : 350;
+            _scheduleRestart(delayMs: delay);
+          }
         },
       );
+
       if (_speechAvailable && mounted) {
         await _startListening();
       }
@@ -168,58 +190,107 @@ class _LiveTranscriptPageState extends State<LiveTranscriptPage> {
     }
   }
 
+  /// Memastikan teks sementara tidak hilang ketika Android memutus sesi di tengah jeda
+  void _flushInterimToFinal() {
+    final pending = _interimText.trim();
+    if (pending.isEmpty) return;
+
+    setState(() {
+      if (_finalSentences.isEmpty || _finalSentences.last != pending) {
+        _finalSentences.add(pending);
+      }
+      _interimText = '';
+    });
+    _socketService.sendFinalTranscript(
+      roomId: widget.roomId,
+      text: pending,
+    );
+    _scrollToBottom();
+  }
+
+  void _scheduleRestart({int delayMs = 300}) {
+    _restartTimer?.cancel();
+    _restartTimer = Timer(Duration(milliseconds: delayMs), () {
+      if (!mounted || !_isMicActive) return;
+      if (!_speech.isListening && !_isStartingSession) {
+        _beginListeningSession();
+      }
+    });
+  }
+
   Future<void> _startListening() async {
     if (!_speechAvailable) {
-      _speechAvailable = await _speech.initialize();
+      await _initSpeech();
+      if (!_speechAvailable) {
+        _showSnackBar(
+          'Izin mikrofon tidak tersedia di perangkat ini',
+          isError: true,
+        );
+        return;
+      }
     }
-    if (!_speechAvailable) {
-      _showSnackBar(
-        'Izin mikrofon tidak tersedia di perangkat ini',
-        isError: true,
+
+    setState(() => _isMicActive = true);
+    await _beginListeningSession();
+  }
+
+  Future<void> _beginListeningSession() async {
+    if (!_isMicActive || _isStartingSession) return;
+    _isStartingSession = true;
+
+    try {
+      await _speech.listen(
+        localeId: 'id_ID',
+        listenFor: const Duration(minutes: 10),
+        pauseFor: const Duration(seconds: 10),
+        listenOptions: SpeechListenOptions(
+          listenMode: ListenMode.dictation,
+          partialResults: true,
+          cancelOnError: false,
+        ),
+        onResult: (result) {
+          if (!mounted || !_isMicActive) return;
+          final words = result.recognizedWords.trim();
+          if (words.isEmpty) return;
+
+          if (result.finalResult) {
+            setState(() {
+              if (_finalSentences.isEmpty || _finalSentences.last != words) {
+                _finalSentences.add(words);
+              }
+              _interimText = '';
+            });
+            _socketService.sendFinalTranscript(
+              roomId: widget.roomId,
+              text: words,
+            );
+            _scrollToBottom();
+          } else {
+            setState(() {
+              _interimText = words;
+            });
+            _socketService.sendInterimTranscript(
+              roomId: widget.roomId,
+              text: words,
+            );
+            _scrollToBottom();
+          }
+        },
       );
-      return;
+    } catch (_) {
+      if (_isMicActive) {
+        _scheduleRestart(delayMs: 500);
+      }
+    } finally {
+      _isStartingSession = false;
     }
-
-    setState(() => _isListening = true);
-
-    await _speech.listen(
-      localeId: 'id_ID',
-      listenMode: ListenMode.dictation,
-      partialResults: true,
-      onResult: (result) {
-        if (!mounted) return;
-        final words = result.recognizedWords.trim();
-        if (words.isEmpty) return;
-
-        if (result.finalResult) {
-          setState(() {
-            _finalSentences.add(words);
-            _interimText = '';
-          });
-          _socketService.sendFinalTranscript(
-            roomId: widget.roomId,
-            text: words,
-          );
-          _scrollToBottom();
-        } else {
-          setState(() {
-            _interimText = words;
-          });
-          _socketService.sendInterimTranscript(
-            roomId: widget.roomId,
-            text: words,
-          );
-          _scrollToBottom();
-        }
-      },
-    );
   }
 
   Future<void> _stopListening() async {
+    _restartTimer?.cancel();
+    setState(() => _isMicActive = false);
+    _flushInterimToFinal();
     await _speech.stop();
-    if (mounted) {
-      setState(() => _isListening = false);
-    }
   }
 
   void _scrollToBottom() {
@@ -425,6 +496,8 @@ class _LiveTranscriptPageState extends State<LiveTranscriptPage> {
 
     setState(() => _isLeaving = true);
     try {
+      _isMicActive = false;
+      _restartTimer?.cancel();
       await _speech.stop();
       await _collaborationService.leaveRoom(widget.roomId);
       _socketService.leaveRoom(widget.roomId);
@@ -616,20 +689,20 @@ class _LiveTranscriptPageState extends State<LiveTranscriptPage> {
                       children: [
                         if (_isHostUser) ...[
                           GestureDetector(
-                            onTap: _isListening
+                            onTap: _isMicActive
                                 ? _stopListening
                                 : _startListening,
                             child: Container(
                               width: 44,
                               height: 44,
                               decoration: BoxDecoration(
-                                color: _isListening
+                                color: _isMicActive
                                     ? Colors.redAccent
                                     : Colors.grey.shade400,
                                 shape: BoxShape.circle,
                               ),
                               child: Icon(
-                                _isListening ? Icons.mic : Icons.mic_off,
+                                _isMicActive ? Icons.mic : Icons.mic_off,
                                 color: Colors.white,
                                 size: 22,
                               ),

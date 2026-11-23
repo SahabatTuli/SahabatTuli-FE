@@ -25,7 +25,8 @@ class HomeChatView extends StatefulWidget {
   State<HomeChatView> createState() => _HomeChatViewState();
 }
 
-class _HomeChatViewState extends State<HomeChatView> {
+class _HomeChatViewState extends State<HomeChatView>
+    with WidgetsBindingObserver {
   final List<Message> _messages = [];
 
   final stt.SpeechToText _speech = stt.SpeechToText();
@@ -39,6 +40,11 @@ class _HomeChatViewState extends State<HomeChatView> {
   bool _isSaving = false;
   String _userName = 'User';
 
+  // State untuk gesture slide-up mic & deteksi keyboard
+  double _micDragOffsetY = 0.0;
+  bool _hasTriggeredSwipeUp = false;
+  bool _keyboardOpenedInTTS = false;
+
   Duration _recordingDuration = Duration.zero;
   Timer? _timer;
   String _currentText = '';
@@ -50,6 +56,7 @@ class _HomeChatViewState extends State<HomeChatView> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _initTts();
     _loadUserName();
   }
@@ -77,12 +84,31 @@ class _HomeChatViewState extends State<HomeChatView> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _timer?.cancel();
     _ttsController.dispose();
     _ttsFocusNode.dispose();
     _scrollController.dispose();
     _flutterTts.stop();
     super.dispose();
+  }
+
+  /// Mendeteksi perubahan tinggi keyboard secara real-time
+  @override
+  void didChangeMetrics() {
+    super.didChangeMetrics();
+    if (!mounted || !_isTTSMode) return;
+
+    final bottomInset = View.of(context).viewInsets.bottom;
+
+    if (bottomInset > 0) {
+      // Keyboard sudah terbuka penuh
+      _keyboardOpenedInTTS = true;
+    } else if (_keyboardOpenedInTTS && bottomInset == 0) {
+      // Keyboard baru saja ditutup -> otomatis kembalikan tombol mic
+      _keyboardOpenedInTTS = false;
+      _switchToSTTMode();
+    }
   }
 
   void _scrollToBottom() {
@@ -106,9 +132,13 @@ class _HomeChatViewState extends State<HomeChatView> {
       _isRecording = false;
       _isChatStarted = true;
       _isTTSMode = true;
+      _keyboardOpenedInTTS = false;
+      _micDragOffsetY = 0.0;
     });
-    Future.delayed(const Duration(milliseconds: 100), () {
-      if (mounted) _ttsFocusNode.requestFocus();
+    Future.delayed(const Duration(milliseconds: 80), () {
+      if (mounted) {
+        _ttsFocusNode.requestFocus();
+      }
     });
   }
 
@@ -117,6 +147,8 @@ class _HomeChatViewState extends State<HomeChatView> {
     setState(() {
       _isChatStarted = true;
       _isTTSMode = false;
+      _keyboardOpenedInTTS = false;
+      _micDragOffsetY = 0.0;
     });
   }
 
@@ -125,10 +157,13 @@ class _HomeChatViewState extends State<HomeChatView> {
       _speech.stop();
       _timer?.cancel();
     }
+    _ttsFocusNode.unfocus();
     setState(() {
       _isRecording = false;
       _isChatStarted = false;
       _isTTSMode = false;
+      _keyboardOpenedInTTS = false;
+      _micDragOffsetY = 0.0;
       _messages.clear();
       _currentText = '';
       _recordingDuration = Duration.zero;
@@ -456,8 +491,17 @@ class _HomeChatViewState extends State<HomeChatView> {
         ),
 
         // Konten utama: Welcome Card (idle) atau Daftar Chat Bubble (aktif)
+        // Ketuk area chat saat keyboard terbuka akan menutup keyboard & memunculkan mic lagi
         Expanded(
-          child: isChatView ? _buildChatList() : _buildWelcomeCard(),
+          child: GestureDetector(
+            behavior: HitTestBehavior.translucent,
+            onTap: () {
+              if (_isTTSMode) {
+                _switchToSTTMode();
+              }
+            },
+            child: isChatView ? _buildChatList() : _buildWelcomeCard(),
+          ),
         ),
 
         // Bagian Bawah (Mic / TTS Input + Pill Bottom Nav)
@@ -851,7 +895,33 @@ class _HomeChatViewState extends State<HomeChatView> {
   Widget _buildMicButton() {
     return GestureDetector(
       onTap: _toggleRecording,
-      child: Container(
+      onVerticalDragStart: (_) {
+        _hasTriggeredSwipeUp = false;
+      },
+      onVerticalDragUpdate: (details) {
+        if (_hasTriggeredSwipeUp) return;
+
+        setState(() {
+          // Batasi geseran ke atas maksimal -36px agar terasa kenyal & responsif
+          _micDragOffsetY = (_micDragOffsetY + details.delta.dy).clamp(-36.0, 0.0);
+        });
+
+        // Jika digeser ke atas minimal 20px, langsung pindah ke TTS + buka keyboard
+        if (_micDragOffsetY <= -20.0) {
+          _hasTriggeredSwipeUp = true;
+          _switchToTTSMode();
+        }
+      },
+      onVerticalDragEnd: (_) {
+        if (!_hasTriggeredSwipeUp && mounted) {
+          setState(() {
+            _micDragOffsetY = 0.0;
+          });
+        }
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 120),
+        transform: Matrix4.translationValues(0, _micDragOffsetY, 0),
         width: 64,
         height: 64,
         decoration: BoxDecoration(
